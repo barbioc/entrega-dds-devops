@@ -1,59 +1,55 @@
-name: CI - Docker y GHCR
+name: CI - Build and Publish to GHCR and Docker Hub
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: write
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Obtener codigo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Definir nombre de imagen
-        id: image
-        shell: bash
-        run: |
-          echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-
-      - name: Construir imagen Docker
-        run: docker build -t dds-devops-demo:test .
-
-      - name: Verificar funcionamiento
-        run: |
-          docker run -d --name web-test \
-            -p 127.0.0.1:8080:80 \
-            dds-devops-demo:test
-          for i in $(seq 1 15); do
-            if curl -fsS http://127.0.0.1:8080/ | grep -q "Hola DevOps"; then
-              echo "Prueba exitosa"
-              exit 0
-            fi
-            sleep 1
-          done
-          docker logs web-test
-          exit 1
-
-      - name: Autenticarse en GHCR
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Etiquetar imagen
-        run: |
-          docker tag dds-devops-demo:test \
-            ${{ steps.image.outputs.name }}:${GITHUB_SHA::7}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Publicar imagen en GHCR
-        run: |
-          docker push \
-            ${{ steps.image.outputs.name }}:${GITHUB_SHA::7}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+ 
+          images: |
+            ghcr.io/${{ github.repository }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/dds-devops
+
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short,prefix=
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
