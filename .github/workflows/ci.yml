@@ -2,8 +2,9 @@ name: CI - Build and Publish to GHCR and Docker Hub
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build-and-push-image:
@@ -11,10 +12,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-
-jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -37,10 +34,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
- 
+          # Define ambos registros de destino
           images: |
             ghcr.io/${{ github.repository }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/dds-devops
+            ${{ secrets.DOCKERHUB_USERNAME }}/entrega-dds-devops
 
           tags: |
             type=raw,value=latest
